@@ -1,0 +1,38 @@
+# === PlatformIO ===
+.pio
+.vscode/
+*.pyc
+__pycache__/
+*.env
+*.DS_Store
+
+# === Archivos compilados ===
+*.elf
+*.bin
+*.hex
+*.map
+*.tmp
+*.bak
+*.swp
+
+# === Configuración personal de editores ===
+*.log
+*.idea/
+*.sublime*
+*.code-workspace
+
+# === Firebase CLI ===
+.firebase/
+.firebaserc
+firebase-debug.log
+
+# === Archivos sensibles ===
+/src/secrets.h
+/src/credenciales.h
+
+# === Tests locales ===
+test/
+tests/
+
+# === Ignorar la carpeta del web (tiene su propio Git) ===
+web/
