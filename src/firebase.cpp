@@ -51,10 +51,6 @@ void registrarDatosSensores() {
 
   String macAddress = obtenerMacAddress();
 
-  if (!permisoFirebase(macAddress)) {
-    return;
-  }
-
   DatosSensores datosNuevos = leerSensores();
   if (!datosNuevos.ahtValido && !datosNuevos.bmpValido) {
     Serial.println("Lectura de sensores no válida.");
@@ -149,4 +145,57 @@ void registrarDatosSensores() {
   }
 
   estadoActual = estadoAnterior;  // Volver al estado anterior
+}
+
+// >>> NUEVA FUNCIÓN PARA GUARDAR LA PRESIÓN EN UNA RUTA SEPARADA
+void registrarPresionHistorial() {
+  if (!Firebase.ready()) {
+    Serial.println("Firebase no está listo, esperando...");
+    return;
+  }
+
+  String macAddress = obtenerMacAddress();
+
+  Serial.println("------------------------------------");
+  Serial.println("Registrando presión para el historial...");
+
+  // 1. Leer la presión del sensor BMP280
+  float presionActual_hPa = bmp.readPressure() / 100.0F;
+
+  // Una comprobación simple para asegurarse de que la lectura es válida
+  if (presionActual_hPa < 800 || presionActual_hPa > 1200) {
+    Serial.println("Error: Lectura de presión fuera de rango. Abortando.");
+    return;
+  }
+
+  // 2. Definir la ruta en Firebase. Usamos el timestamp como clave
+  // para que los datos queden ordenados cronológicamente.
+  String path = "/sensores_en_tiempo_real/" + macAddress + "/pressure_history/";
+
+  // 3. Crear un objeto JSON para enviar
+  FirebaseJson json;
+  json.set("pressure", presionActual_hPa);
+  json.set("timestamp/.sv",
+           "timestamp");  // Aquí usamos el timestamp del servidor COMO VALOR
+
+  Serial.print("Enviando a la ruta: ");
+  Serial.println(path);
+  Serial.print("JSON a enviar: ");
+  String jsonStr;
+  json.toString(jsonStr,
+                true);  // El 'true' es para imprimirlo bonito (pretty print)
+  Serial.println(jsonStr);
+
+  // 4. Enviar el dato a Firebase
+  // Esto creará una nueva entrada con una clave única en /pressure_history
+  if (Firebase.RTDB.pushJSON(&fbdo, path, &json)) {
+    Serial.println(">> Éxito: Historial de presión guardado en Firebase.");
+    // Opcional: puedes obtener la clave única que se generó
+    // Serial.print("Push ID generado: ");
+    // Serial.println(fbdo.pushName());
+  } else {
+    Serial.println(">> ERROR al guardar el historial de presión en Firebase.");
+    Serial.println(fbdo.errorReason());
+  }
+  Serial.println("------------------------------------");
 }

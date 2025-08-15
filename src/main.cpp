@@ -32,6 +32,11 @@ bool primerEnvioPendiente = true;  // Nuestro nuevo flag
 const unsigned long INTERVALO_VERIFICACION = 60 * 60 * 1000;  // 1 hora
 static unsigned long ultimaVerificacionPermiso = 0;
 
+// >>> NUEVAS VARIABLES PARA EL HISTORIAL DE PRESIÓN
+unsigned long ultimaEscrituraHistorial = 0;
+const unsigned long INTERVALO_HISTORIAL_PRESION =
+    3600000UL;  // 1 hora en milisegundos (60 * 60 * 1000)
+
 // Bandera global para controlar el permiso
 bool permiso_firebase_OK = false;
 
@@ -126,7 +131,7 @@ void loop() {
   // ¡Llama a esta función en cada ciclo!
   gestionarLedDeEstado();
 
-  // --- Tu Lógica Principal ---
+  // --- Lógica Principal ---
   // ----------------------------------------------
   // --- Lectura datos sensores y envio a Firebase
   // ----------------------------------------------
@@ -181,7 +186,26 @@ void loop() {
     ultimoEnvio = ahora;
   }
 
-  // ... otro código que necesites en tu loop ...
+  // >>> --- BLOQUE 3: NUEVO BLOQUE PARA ENVIAR HISTORIAL DE PRESIÓN (CADA HORA)
+  // --- Este bloque es completamente independiente y se encarga de registrar la
+  // presión una vez por hora para construir la tendencia.
+  if (ahora - ultimaEscrituraHistorial >= INTERVALO_HISTORIAL_PRESION) {
+    Serial.print("Intentando enviar presión al historial... ");
+
+    // También respetamos el permiso de Firebase para esta operación
+    if (permiso_firebase_OK) {
+      Serial.println("Permiso OK. Enviando...");
+      // Llamamos a una nueva función específica para esta tarea
+      registrarPresionHistorial();
+    } else {
+      Serial.println("Permiso DENEGADO. No se enviará historial de presión.");
+    }
+
+    // Actualizamos el temporizador para la próxima hora.
+    ultimaEscrituraHistorial = ahora;
+  }
+
+  // ... otro código que necesite el loop ...
 
   gestionarComandosSerie();  // <--- LLAMA A LA FUNCIÓN AQUÍ
 

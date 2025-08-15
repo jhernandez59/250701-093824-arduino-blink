@@ -25,5 +25,6 @@ void configurarFirebase();
 void registrarDatosSensores();
 bool permisoFirebase(String);
 int getContadorDesconexiones();
+void registrarPresionHistorial();
 
 #endif
