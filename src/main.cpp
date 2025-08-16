@@ -178,6 +178,8 @@ void loop() {
     if (permiso_firebase_OK) {
       Serial.println("Permiso OK. Enviando...");
       registrarDatosSensores();  // Tu función que envía los datos
+      // registrarPresionHistorial();
+
     } else {
       Serial.println("Permiso DENEGADO. No se enviarán datos.");
     }
@@ -189,6 +191,7 @@ void loop() {
   // >>> --- BLOQUE 3: NUEVO BLOQUE PARA ENVIAR HISTORIAL DE PRESIÓN (CADA HORA)
   // --- Este bloque es completamente independiente y se encarga de registrar la
   // presión una vez por hora para construir la tendencia.
+
   if (ahora - ultimaEscrituraHistorial >= INTERVALO_HISTORIAL_PRESION) {
     Serial.print("Intentando enviar presión al historial... ");
 

@@ -51,6 +51,7 @@ void registrarDatosSensores() {
 
   String macAddress = obtenerMacAddress();
 
+  // --- 1. LEER SENSORES LOCALES ---
   DatosSensores datosNuevos = leerSensores();
   if (!datosNuevos.ahtValido && !datosNuevos.bmpValido) {
     Serial.println("Lectura de sensores no válida.");
@@ -60,33 +61,48 @@ void registrarDatosSensores() {
   estadoAnterior = estadoActual;
   estadoActual = ENVIANDO_DATOS;
 
-  // --- OBTENER LECTURA ANTERIOR ---
-  String path = "/sensores_en_tiempo_real/" + macAddress;
+  // --- 2. OBTENER LECTURA ANTERIOR DE FIREBASE (MÉTODO EFICIENTE) ---
+  String basePath = "/sensores_en_tiempo_real/" + macAddress;
+  String actualPath = basePath + "/actual";
+
   float t_anterior = 0, h_anterior = 0, p_anterior = 0;
-  // Usamos double para el timestamp por su gran tamaño.
   double ts_anterior = 0;
 
-  // Intentamos obtener los valores anteriores de la ruta "actual"
-  // Es importante comprobar el valor de retorno de getFloat para la primera
-  // ejecución, cuando no hay datos.
-  if (Firebase.RTDB.getFloat(&fbdo, path + "/actual/temperatura")) {
-    t_anterior = fbdo.floatData();
-  }
-  if (Firebase.RTDB.getFloat(&fbdo, path + "/actual/humedad")) {
-    h_anterior = fbdo.floatData();
-  }
-  if (Firebase.RTDB.getFloat(&fbdo, path + "/actual/presion")) {
-    p_anterior = fbdo.floatData();
-  }
+  FirebaseJson jsonAnterior;  // Objeto para almacenar el resultado
 
-  // --- ¡¡LECTURA DEL TIMESTAMP ANTERIOR!! ---
-  if (Firebase.RTDB.getDouble(&fbdo, path + "/actual/timestamp")) {
-    ts_anterior = fbdo.doubleData();  // Guardamos el número del timestamp
+  Serial.println(
+      "Obteniendo datos anteriores de Firebase en una sola petición...");
+
+  if (Firebase.RTDB.getJSON(&fbdo, actualPath, &jsonAnterior)) {
+    // Si la petición es exitosa, extraemos los datos
+    FirebaseJsonData jsonData;
+
+    // Usamos .get para extraer cada valor del JSON recuperado
+    jsonAnterior.get(jsonData, "temperatura");
+    if (jsonData.success)
+      t_anterior = jsonData.floatValue;
+
+    jsonAnterior.get(jsonData, "humedad");
+    if (jsonData.success)
+      h_anterior = jsonData.floatValue;
+
+    jsonAnterior.get(jsonData, "presion");
+    if (jsonData.success)
+      p_anterior = jsonData.floatValue;
+
+    jsonAnterior.get(jsonData, "timestamp");
+    if (jsonData.success)
+      ts_anterior = jsonData.doubleValue;
+
     Serial.print("Timestamp anterior recuperado: ");
     Serial.println(String(ts_anterior, 0));
+  } else {
+    Serial.println(
+        "No se pudieron obtener datos anteriores (puede ser la primera "
+        "ejecución).");
   }
 
-  // --- CONSTRUIR UN ÚNICO OBJETO JSON ---
+  // --- 3. CONSTRUIR EL OBJETO JSON PARA ACTUALIZAR ---
   FirebaseJson rootJson;
 
   // Datos de ubicación y nombre (en la raíz del dispositivo)
@@ -99,18 +115,13 @@ void registrarDatosSensores() {
   rootJson.set("anterior/temperatura", t_anterior);
   rootJson.set("anterior/humedad", h_anterior);
   rootJson.set("anterior/presion", p_anterior);
-  // --- ¡CAMBIO CLAVE 1! ---
-  // Escribimos el NÚMERO que leímos, no la instrucción ".sv".
-  // Para que Firebase lo interprete como número, es mejor usar set(...,
-  // (double)ts_anterior) o asegurarse de que la variable es double.
   rootJson.set("anterior/timestamp", ts_anterior);
 
   // --- Sub-nodo "actual" (con los datos nuevos) ---
   rootJson.set("actual/temperatura", datosNuevos.temperatura);
   rootJson.set("actual/humedad", datosNuevos.humedad);
   rootJson.set("actual/presion", datosNuevos.presion);
-  rootJson.set("actual/timestamp/.sv",
-               "timestamp");  // Marca de tiempo de la nueva lectura
+  rootJson.set("actual/timestamp/.sv", "timestamp");
 
   // --- Sub-nodo "diferencia" ---
   rootJson.set("diferencia/temperatura", datosNuevos.temperatura - t_anterior);
@@ -135,12 +146,12 @@ void registrarDatosSensores() {
   // --- Marca de tiempo principal ---
   rootJson.set("ultimo_reporte/.sv", "timestamp");
 
-  // --- HACER UNA ÚNICA ESCRITURA ---
-  Serial.println("Enviando JSON completo a Firebase...");
-  if (Firebase.RTDB.setJSON(&fbdo, path, &rootJson)) {
-    Serial.println("✅ Datos completos enviados correctamente.");
+  // --- 4. HACER UNA ÚNICA ESCRITURA NO DESTRUCTIVA ---
+  Serial.println("Enviando JSON completo a Firebase (usando UPDATE)...");
+  if (Firebase.RTDB.updateNode(&fbdo, basePath, &rootJson)) {
+    Serial.println("✅ Datos completos actualizados correctamente.");
   } else {
-    Serial.print("❌ Error al enviar JSON completo: ");
+    Serial.print("❌ Error al actualizar JSON completo: ");
     Serial.println(fbdo.errorReason());
   }
 
